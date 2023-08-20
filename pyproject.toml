@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "chaos_blob_storage"
+version = "0.0.1"
+authors = [
+  { name="Janusz Janowski", email="januszjanowski@outlook.com" },
+]
+description = "A small distributed blob storage"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/esentino/chaos-blob-storage"
+"Bug Tracker" = "https://github.com/esentino/chaos-blob-storage/issues"
