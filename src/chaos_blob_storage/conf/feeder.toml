@@ -1,0 +1,6 @@
+port = 40404
+host = "127.0.0.1"
+[gossiper]
+host = "127.0.0.1"
+post = 50505
+heartbeat = 30
