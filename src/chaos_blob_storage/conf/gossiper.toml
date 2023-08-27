@@ -1,0 +1,5 @@
+port = 50505
+host = "127.0.0.1"
+[node]
+heartbeat = 60
+gossip_timeout = 2

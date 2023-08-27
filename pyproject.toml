@@ -17,6 +17,13 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+dependencies = [
+    "tomli >= 2.0.1"
+]
+[project.optional-dependencies]
+tests = [
+    "pytest"
+]
 
 [project.urls]
 "Homepage" = "https://github.com/esentino/chaos-blob-storage"
