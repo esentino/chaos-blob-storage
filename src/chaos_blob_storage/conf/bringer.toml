@@ -1,0 +1,7 @@
+port = 40404
+host = "127.0.0.1"
+name = "bringer1"
+[gossiper]
+host = "127.0.0.1"
+port = 50505
+heartbeat = 30

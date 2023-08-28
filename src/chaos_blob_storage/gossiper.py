@@ -10,8 +10,16 @@ import socket
 import types
 from selectors import SelectorKey
 from typing import TypedDict
-
+import struct
 import tomli
+
+from protocol import (
+    Command,
+    COMMAND_FORMAT,
+    SIZE_COMMAND_FORMAT,
+    NODE_NAME_FORMAT,MY_PORT_FORMAT,
+    SIZE_NODE_NAME_FORMAT, SIZE_MY_PORT,
+)
 
 
 class GossipNodeConfig(TypedDict):
@@ -51,28 +59,71 @@ def accept_connection(socket, selector):
     connection, address = socket.accept()
     print(f"Set ears to {address}")
     connection.setblocking(False)
-    data = types.SimpleNamespace(addr=address, inb=b"", outb=b"")
+    data = types.SimpleNamespace(addr=address, inb=b"", outb=b"", node_name=None, node_port=None, node_host=None, its_end=False)
+
     events = selectors.EVENT_READ | selectors.EVENT_WRITE
     selector.register(connection, events, data=data)
 
 
+def handle_incoming_data(data):
+    if len(data.inb) < 1:
+        return
+    command = get_method(data)
+    match command:
+        case Command.HELLO:
+            data.outb += struct.pack(COMMAND_FORMAT, Command.HI)
+            data.inb = data.inb[SIZE_COMMAND_FORMAT:]
+        case Command.I_AM_BRINGER:
+            if len(data.inb) >= SIZE_COMMAND_FORMAT+SIZE_NODE_NAME_FORMAT:
+                node_name = get_node_name(data)
+                data.inb = data.inb[SIZE_COMMAND_FORMAT:]
+                data.outb += struct.pack(COMMAND_FORMAT, Command.COPY_THAT)
+                data.inb = data.inb[SIZE_NODE_NAME_FORMAT:]
+                data.node_name = node_name
+        case Command.MY_PORT:
+            if len(data.inb) >= SIZE_COMMAND_FORMAT+SIZE_MY_PORT:
+                data.inb = data.inb[SIZE_COMMAND_FORMAT:]
+                port, = struct.unpack(MY_PORT_FORMAT, data.inb[:SIZE_MY_PORT])
+                data.inb = data.inb[SIZE_MY_PORT:]
+                data.node_port = port
+                data.outb += struct.pack(COMMAND_FORMAT, Command.COPY_THAT)
+
+
+def get_method(data):
+    command_data = data.inb[:SIZE_COMMAND_FORMAT]
+    (command,) = struct.unpack(COMMAND_FORMAT, command_data)
+    return command
+
+
+def get_node_name(data):
+    string_data = data.inb[:SIZE_NODE_NAME_FORMAT]
+    (node_name,) = struct.unpack(NODE_NAME_FORMAT, string_data)
+    return node_name
+
+
 def service_connection(key: SelectorKey, mask: int, selector):
+    """
+    Flow of communication
+    - Feeder/bringer Start Communication send what want to do
+    - Gossiper return information.
+    """
     sock = key.fileobj
     data = key.data
-
     if mask & selectors.EVENT_READ:
         recv_data = sock.recv(1024)
         if recv_data:
             data.inb += recv_data
-        else:
-            print(f"End of gossiping with {data.addr}")
-            selector.unregister(sock)
-            sock.close()
+            print(data.inb)
+        handle_incoming_data(data)
     if mask & selectors.EVENT_WRITE:
         if data.outb:
             print(f"Echoing {data.outb!r} to {data.addr}")
             sent = sock.send(data.outb)  # Should be ready to write
             data.outb = data.outb[sent:]
+        if not data.outb and data.its_end:
+            print(f"End of gossiping with {data.addr}")
+            selector.unregister(sock)
+            sock.close()
 
 
 def gather_gossip(config: GossiperConfig):
