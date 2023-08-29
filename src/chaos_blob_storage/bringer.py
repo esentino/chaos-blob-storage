@@ -5,14 +5,20 @@ Bringer is responsible for storing  parts blob file in directory
 - send and receive parts blob file
 - balance of number of parts blob file
 """
+import ipaddress
 import socket
 import struct
 from typing import TypedDict
 
 import tomli
-
-from protocol import SIZE_COMMAND_FORMAT,NODE_NAME_FORMAT,MY_PORT_FORMAT
-from protocol import COMMAND_FORMAT, Command
+from protocol import (
+    COMMAND_FORMAT,
+    MY_IP_FORMAT,
+    MY_PORT_FORMAT,
+    NODE_NAME_FORMAT,
+    SIZE_COMMAND_FORMAT,
+    Command,
+)
 
 
 class GossipConfig(TypedDict):
@@ -27,6 +33,7 @@ class BringerConfig(TypedDict):
     gossiper: GossipConfig
     name: str
 
+
 def read_config(config_file: str) -> BringerConfig:
     with open(file=config_file, mode="rb") as file_config:
         config_data = tomli.load(file_config)
@@ -36,7 +43,7 @@ def read_config(config_file: str) -> BringerConfig:
                 "port": int(),
                 "host": str(),
                 "name": str(),
-                "gossiper": {"host": str(), "port": int(),  "heartbeat": int()},
+                "gossiper": {"host": str(), "port": int(), "heartbeat": int()},
             }:
                 pass
             case _:
@@ -56,23 +63,41 @@ def read_config(config_file: str) -> BringerConfig:
 def get_the_gossips(config: BringerConfig):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((config["gossiper"]["host"], config["gossiper"]["port"]))
+
+        # Hello Step
         s.sendall(struct.pack(COMMAND_FORMAT, Command.HELLO))
         response = s.recv(1024)
-        command, = struct.unpack(COMMAND_FORMAT, response[:SIZE_COMMAND_FORMAT])
+        (command,) = struct.unpack(COMMAND_FORMAT, response[:SIZE_COMMAND_FORMAT])
         if command != Command.HI:
             raise ValueError(f"Expect {Command.HI} get {command}")
+
+        # Introduce step
         s.send(struct.pack(COMMAND_FORMAT, Command.I_AM_BRINGER))
-        s.send(struct.pack(NODE_NAME_FORMAT,config['name'].encode('utf8')))
+        s.send(struct.pack(NODE_NAME_FORMAT, config["name"].encode("utf8")))
         response = s.recv(1024)
-        command, = struct.unpack(COMMAND_FORMAT, response[:SIZE_COMMAND_FORMAT])
+        (command,) = struct.unpack(COMMAND_FORMAT, response[:SIZE_COMMAND_FORMAT])
         if command != Command.COPY_THAT:
             raise ValueError(f"Expect {Command.COPY_THAT} get {command}")
+
+        # Port step
         s.send(struct.pack(COMMAND_FORMAT, Command.MY_PORT))
         s.send(struct.pack(MY_PORT_FORMAT, config["port"]))
         response = s.recv(1024)
-        command, = struct.unpack(COMMAND_FORMAT, response[:SIZE_COMMAND_FORMAT])
+        (command,) = struct.unpack(COMMAND_FORMAT, response[:SIZE_COMMAND_FORMAT])
         if command != Command.COPY_THAT:
             raise ValueError(f"Expect {Command.COPY_THAT} get {command}")
+
+        # IP step
+        s.send(struct.pack(COMMAND_FORMAT, Command.MY_IP))
+
+        host_ip = int(ipaddress.ip_address(config["host"]))
+        s.send(struct.pack(MY_IP_FORMAT, host_ip))
+
+        response = s.recv(1024)
+        (command,) = struct.unpack(COMMAND_FORMAT, response[:SIZE_COMMAND_FORMAT])
+        if command != Command.COPY_THAT:
+            raise ValueError(f"Expect {Command.COPY_THAT} get {command}")
+
 
 if __name__ == "__main__":
     config = read_config("conf/bringer.toml")

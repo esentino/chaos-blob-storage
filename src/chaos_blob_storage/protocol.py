@@ -49,3 +49,6 @@ SIZE_NODE_NAME_FORMAT = struct.calcsize(NODE_NAME_FORMAT)
 
 MY_PORT_FORMAT = ">i"
 SIZE_MY_PORT = struct.calcsize(MY_PORT_FORMAT)
+
+MY_IP_FORMAT = ">i"
+SIZE_MY_IP_FORMAT = struct.calcsize(MY_IP_FORMAT)

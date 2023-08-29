@@ -7,18 +7,22 @@ on changes in changes of nodes.
 """
 import selectors
 import socket
+import struct
 import types
 from selectors import SelectorKey
 from typing import TypedDict
-import struct
-import tomli
 
+import tomli
 from protocol import (
-    Command,
     COMMAND_FORMAT,
+    MY_IP_FORMAT,
+    MY_PORT_FORMAT,
+    NODE_NAME_FORMAT,
     SIZE_COMMAND_FORMAT,
-    NODE_NAME_FORMAT,MY_PORT_FORMAT,
-    SIZE_NODE_NAME_FORMAT, SIZE_MY_PORT,
+    SIZE_MY_IP_FORMAT,
+    SIZE_MY_PORT,
+    SIZE_NODE_NAME_FORMAT,
+    Command,
 )
 
 
@@ -59,7 +63,15 @@ def accept_connection(socket, selector):
     connection, address = socket.accept()
     print(f"Set ears to {address}")
     connection.setblocking(False)
-    data = types.SimpleNamespace(addr=address, inb=b"", outb=b"", node_name=None, node_port=None, node_host=None, its_end=False)
+    data = types.SimpleNamespace(
+        addr=address,
+        inb=b"",
+        outb=b"",
+        node_name=None,
+        node_port=None,
+        node_host=None,
+        its_end=False,
+    )
 
     events = selectors.EVENT_READ | selectors.EVENT_WRITE
     selector.register(connection, events, data=data)
@@ -74,18 +86,25 @@ def handle_incoming_data(data):
             data.outb += struct.pack(COMMAND_FORMAT, Command.HI)
             data.inb = data.inb[SIZE_COMMAND_FORMAT:]
         case Command.I_AM_BRINGER:
-            if len(data.inb) >= SIZE_COMMAND_FORMAT+SIZE_NODE_NAME_FORMAT:
+            if len(data.inb) >= SIZE_COMMAND_FORMAT + SIZE_NODE_NAME_FORMAT:
                 node_name = get_node_name(data)
                 data.inb = data.inb[SIZE_COMMAND_FORMAT:]
                 data.outb += struct.pack(COMMAND_FORMAT, Command.COPY_THAT)
                 data.inb = data.inb[SIZE_NODE_NAME_FORMAT:]
                 data.node_name = node_name
         case Command.MY_PORT:
-            if len(data.inb) >= SIZE_COMMAND_FORMAT+SIZE_MY_PORT:
+            if len(data.inb) >= SIZE_COMMAND_FORMAT + SIZE_MY_PORT:
                 data.inb = data.inb[SIZE_COMMAND_FORMAT:]
-                port, = struct.unpack(MY_PORT_FORMAT, data.inb[:SIZE_MY_PORT])
+                (port,) = struct.unpack(MY_PORT_FORMAT, data.inb[:SIZE_MY_PORT])
                 data.inb = data.inb[SIZE_MY_PORT:]
                 data.node_port = port
+                data.outb += struct.pack(COMMAND_FORMAT, Command.COPY_THAT)
+        case Command.MY_IP:
+            if len(data.inb) >= SIZE_COMMAND_FORMAT + SIZE_MY_IP_FORMAT:
+                data.inb = data.inb[SIZE_COMMAND_FORMAT:]
+                (int_ip,) = struct.unpack(MY_IP_FORMAT, data.inb[:SIZE_MY_IP_FORMAT])
+                data.inb = data.inb[SIZE_MY_IP_FORMAT:]
+                data.node_ip = int_ip
                 data.outb += struct.pack(COMMAND_FORMAT, Command.COPY_THAT)
 
 
